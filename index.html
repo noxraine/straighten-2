@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Straighten 2 — Perspective correction</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <h1>Straighten 2</h1>
+            <p class="subtitle">Perspective correction with Qwen AI</p>
+        </header>
+
+        <div class="main-content">
+            <aside class="sidebar">
+                <div class="upload-section" id="uploadSection">
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">📷</div>
+                        <p>Drop a photo</p>
+                        <span class="upload-hint">JPEG, PNG, WebP</span>
+                    </div>
+                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    <div class="upload-actions">
+                        <button class="btn btn-secondary" id="browseBtn">Browse</button>
+                    </div>
+                </div>
+
+                <div class="control-panel hidden" id="controlPanel">
+                    <div class="image-actions">
+                        <button class="btn btn-icon" id="resetBtn" title="Reset">↺</button>
+                        <button class="btn btn-icon" id="replaceBtn" title="Replace">🔄</button>
+                    </div>
+
+                    <div class="main-action">
+                        <button class="btn btn-primary btn-large" id="straightenBtn">
+                            Выпрямить стену (AI)
+                        </button>
+                    </div>
+
+                    <div class="sliders-section">
+                        <div class="slider-group">
+                            <label>Поворот <span id="rotateValue">0°</span></label>
+                            <input type="range" id="rotateSlider" min="-90" max="90" value="0" step="1">
+                        </div>
+                        <div class="slider-group">
+                            <label>Наклон <span id="tiltValue">0.0</span></label>
+                            <input type="range" id="tiltSlider" min="-1" max="1" value="0" step="0.1">
+                        </div>
+                        <div class="slider-group">
+                            <label>Масштаб <span id="scaleValue">1.0</span></label>
+                            <input type="range" id="scaleSlider" min="0.5" max="2" value="1" step="0.1">
+                        </div>
+                    </div>
+
+                    <div class="secondary-actions">
+                        <button class="btn btn-outline" id="rerunBtn">Повторить в Qwen</button>
+                        <button class="btn btn-outline" id="resetCornersBtn">Сбросить точки</button>
+                    </div>
+
+                    <div class="points-info">
+                        <div class="point-label active" data-point="0">1. Top left</div>
+                        <div class="point-label" data-point="1">2. Top right</div>
+                        <div class="point-label" data-point="2">3. Bottom right</div>
+                        <div class="point-label" data-point="3">4. Bottom left</div>
+                    </div>
+                    <p class="status-line" id="statusLine"></p>
+                </div>
+            </aside>
+
+            <main class="canvas-area">
+                <div class="canvas-container" id="canvasContainer">
+                    <canvas id="mainCanvas"></canvas>
+                    <div class="canvas-overlay" id="canvasOverlay"></div>
+                </div>
+                <div class="preview-section" id="previewSection">
+                    <h3>Result</h3>
+                    <img id="resultImage" alt="Corrected" style="max-width:100%; display:none; border-radius:8px;">
+                    <p id="resultPlaceholder">Result will appear here after processing</p>
+                </div>
+            </main>
+
+            <aside class="settings-panel" id="settingsPanel">
+                <div class="setting-group">
+                    <h3>Export</h3>
+                    <div class="export-options">
+                        <label><input type="radio" name="format" value="jpeg" checked> JPEG</label>
+                        <label><input type="radio" name="format" value="png"> PNG</label>
+                    </div>
+                    <div class="export-actions">
+                        <button class="btn btn-primary" id="downloadBtn">Download</button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <footer class="footer">
+            <p>Qwen processes the photo on the server. Local copy is discarded when you close the tab.</p>
+        </footer>
+    </div>
+
+    <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Processing with Qwen...</p>
+            <p class="loading-hint">This usually takes 10–40 seconds</p>
+        </div>
+    </div>
+
+    <div class="error-toast hidden" id="errorToast"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
