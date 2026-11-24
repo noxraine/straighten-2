@@ -10,21 +10,16 @@ exports.handler = async (event) => {
     if (!token) return { statusCode: 500, body: 'REPLICATE_API_TOKEN not set' };
 
     const prompt = `This is a cropped photo of ONE wall from a room interior.
-Identify the MAIN object on this wall. Choose EXACTLY ONE from this list:
-- window
-- door
-- balcony door
-- radiator
-- painting
-- mirror
-- empty wall
 
-Rules:
-- If there is a window, answer "window" (even if there is also a radiator below it).
-- If there is a balcony door (tall glass door), answer "balcony door".
-- If there is a regular door, answer "door".
-- If the wall has only small fixtures (sockets, switches), answer "empty wall".
-Answer with ONE phrase from the list. Nothing else.`;
+Describe what is on this wall in ONE short phrase (5-12 words). Examples:
+- a window with a radiator below
+- two windows side by side
+- a wooden door
+- a balcony door with curtains
+- an empty white wall
+- a painting above a sofa
+
+Be specific about the number and type of objects. Answer with ONLY the description, nothing else.`;
 
     const createRes = await fetch('https://api.replicate.com/v1/models/lucataco/qwen2-vl-7b-instruct/predictions', {
       method: 'POST',
@@ -37,7 +32,7 @@ Answer with ONE phrase from the list. Nothing else.`;
         input: {
           image: croppedImage,
           prompt,
-          max_new_tokens: 20,
+          max_new_tokens: 40,
           temperature: 0.1
         }
       })
@@ -65,26 +60,27 @@ Answer with ONE phrase from the list. Nothing else.`;
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ object: 'empty wall', raw: '', error: prediction.error || 'VL failed' })
+        body: JSON.stringify({ object: 'empty wall', description: 'the marked wall', raw: '', error: prediction.error || 'VL failed' })
       };
     }
 
     let raw = prediction.output;
     if (Array.isArray(raw)) raw = raw.join('');
-    raw = String(raw || '').trim();
+    raw = String(raw || '').trim().replace(/^["']|["']$/g, '');
 
     const object = normalizeObject(raw);
+    const description = raw || 'the marked wall';
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ object, raw })
+      body: JSON.stringify({ object, description, raw })
     };
   } catch (err) {
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ object: 'empty wall', raw: '', error: err.message })
+      body: JSON.stringify({ object: 'empty wall', description: 'the marked wall', raw: '', error: err.message })
     };
   }
 };
