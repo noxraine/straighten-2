@@ -9,6 +9,18 @@ exports.handler = async (event) => {
     const token = process.env.REPLICATE_API_TOKEN;
     if (!token) return { statusCode: 500, body: 'REPLICATE_API_TOKEN not set' };
 
+    const input = {
+      image,
+      prompt: prompt || 'Rotate the camera until the wall is perfectly frontal, centered and perpendicular. Keep all existing walls, doors and windows exactly as they are. No new objects.',
+      use_wide_angle: false,
+      use_multiple_angles: true,
+      go_fast: true,
+      multiple_angles_strength: 1,
+      aspect_ratio: 'match_input_image',
+      output_format: 'png'
+    };
+    // Do NOT force rotate_degrees / vertical_tilt / move_forward — let Qwen decide freely
+
     const createRes = await fetch('https://api.replicate.com/v1/models/qwen/qwen-edit-multiangle/predictions', {
       method: 'POST',
       headers: {
@@ -16,21 +28,7 @@ exports.handler = async (event) => {
         'Content-Type': 'application/json',
         'Prefer': 'wait=8'
       },
-      body: JSON.stringify({
-        input: {
-          image,
-          prompt: prompt || 'Rotate the camera until the wall is perfectly frontal, centered and perpendicular. Keep existing content. No new objects.',
-          rotate_degrees: 0,
-          vertical_tilt: 0,
-          move_forward: 0,
-          use_wide_angle: false,
-          use_multiple_angles: true,
-          go_fast: true,
-          multiple_angles_strength: 1,
-          aspect_ratio: 'match_input_image',
-          output_format: 'png'
-        }
-      })
+      body: JSON.stringify({ input })
     });
 
     if (!createRes.ok) {
