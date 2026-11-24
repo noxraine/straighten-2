@@ -1,4 +1,4 @@
-// Straighten 2 — basic client logic
+// Straighten 2 — direction from 4 points + free Qwen
 const $ = (id) => document.getElementById(id);
 const uploadArea = $('uploadArea');
 const fileInput = $('fileInput');
@@ -77,6 +77,37 @@ function redraw() {
   });
 }
 
+function getDirection(points, imgWidth, imgHeight) {
+  if (points.length < 4) return { horizontal: 'none', vertical: 'none' };
+  // Order: 0=TL, 1=TR, 2=BR, 3=BL
+  const centerX = (points[0].x + points[1].x + points[2].x + points[3].x) / 4;
+  const centerY = (points[0].y + points[1].y + points[2].y + points[3].y) / 4;
+  const imgCenterX = imgWidth / 2;
+  const imgCenterY = imgHeight / 2;
+
+  const horizontal = centerX < imgCenterX - 30 ? 'left' : centerX > imgCenterX + 30 ? 'right' : 'none';
+  const vertical = centerY < imgCenterY - 30 ? 'up' : centerY > imgCenterY + 30 ? 'down' : 'none';
+
+  return { horizontal, vertical };
+}
+
+function buildPrompt(dir) {
+  let rotate = '';
+  if (dir.horizontal === 'left') rotate = 'to the left';
+  else if (dir.horizontal === 'right') rotate = 'to the right';
+
+  let tilt = '';
+  if (dir.vertical === 'up') tilt = ' and look up';
+  else if (dir.vertical === 'down') tilt = ' and look down';
+
+  let action = 'Rotate the camera';
+  if (rotate) action += ` ${rotate}`;
+  if (tilt) action += tilt;
+  if (!rotate && !tilt) action = 'Make the wall';
+
+  return `${action} until the wall is perfectly frontal, centered and perpendicular. Keep all existing walls, doors and windows exactly as they are. No new objects.`;
+}
+
 $('resetBtn').onclick = () => {
   points = [];
   currentPointIndex = 0;
@@ -97,17 +128,17 @@ straightenBtn.onclick = async () => {
     showError('Please place 4 points first');
     return;
   }
+  const dir = getDirection(points, currentImage.width, currentImage.height);
+  const prompt = buildPrompt(dir);
+  setStatus(`Direction: ${dir.horizontal}/${dir.vertical} → sending`);
+
   loadingOverlay.classList.remove('hidden');
-  setStatus('Sending to Qwen...');
   try {
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     const res = await fetch('/.netlify/functions/qwen-frontal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        image: dataUrl,
-        prompt: 'Rotate the camera until the wall marked by the four points is perfectly frontal, centered and perpendicular. Keep all existing walls, doors and windows exactly as they are. No new objects.'
-      })
+      body: JSON.stringify({ image: dataUrl, prompt })
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
