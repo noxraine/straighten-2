@@ -1,4 +1,4 @@
-// app.js — Straighten 2: aspect-ratio fix + post-processing pipeline
+// app.js — Straighten 2: aspect-ratio fix + post-processing + client polling
 const $ = (id) => document.getElementById(id);
 
 console.log('app.js loaded');
@@ -97,7 +97,6 @@ function fitSourceCanvas() {
   sourceCanvas.style.top = Math.round((frameH - drawH) / 2) + 'px';
   sourceCanvas.style.position = 'absolute';
 
-  // Keep high internal resolution
   sourceCanvas.width = imgW;
   sourceCanvas.height = imgH;
 }
@@ -302,7 +301,7 @@ function createInpaintMask(canvas, threshold = 18) {
   for (let i = 0; i < srcData.length; i += 4) {
     const lum = (srcData[i] + srcData[i + 1] + srcData[i + 2]) / 3;
     const isEmpty = srcData[i + 3] < 40 || lum < threshold;
-    const v = isEmpty ? 255 : 0; // white = inpaint
+    const v = isEmpty ? 255 : 0;
     mData.data[i] = v;
     mData.data[i + 1] = v;
     mData.data[i + 2] = v;
@@ -349,6 +348,26 @@ async function processResult(img) {
   return canvas;
 }
 
+async function pollQwen(getUrl, id) {
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 2500));
+    setStatus(`Qwen processing... (${i + 1})`);
+    const res = await fetch('/.netlify/functions/qwen-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ getUrl, id })
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Status check failed');
+    }
+    const data = await res.json();
+    if (data.status === 'succeeded') return data.output;
+    if (data.status === 'failed') throw new Error(data.error || 'Prediction failed');
+  }
+  throw new Error('Qwen timed out on client');
+}
+
 // ---------- Qwen run ----------
 if (qwenRun) {
   qwenRun.onclick = async () => {
@@ -358,7 +377,7 @@ if (qwenRun) {
     }
     const dir = getDirection(points, currentImage.width, currentImage.height);
     const prompt = buildPrompt(dir);
-    setStatus(`Direction: ${dir.horizontal}/${dir.vertical} → sending to Qwen...`);
+    setStatus(`Direction: ${dir.horizontal}/${dir.vertical} → creating prediction...`);
 
     try {
       const cleanCanvas = document.createElement('canvas');
@@ -373,8 +392,13 @@ if (qwenRun) {
         body: JSON.stringify({ image: dataUrl, prompt })
       });
       if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      if (!data.output) throw new Error('No output from Qwen');
+      const startData = await res.json();
+
+      let output = startData.output;
+      if (!output) {
+        output = await pollQwen(startData.getUrl, startData.id);
+      }
+      if (!output) throw new Error('No output from Qwen');
 
       setStatus('Qwen done → post-processing...');
       const resultImg = new Image();
@@ -388,20 +412,20 @@ if (qwenRun) {
           if (previewEmpty) previewEmpty.style.display = 'none';
           if (previewCanvas) previewCanvas.style.display = 'none';
           if (downloadBtn) downloadBtn.disabled = false;
-          setStatus('Done — max crop + WB + clarity' + (hasSignificantEmpty(imageToCanvas(resultImg)) ? ' + LaMa' : ''));
+          setStatus('Done — max crop + WB + clarity');
         } catch (e) {
           console.error(e);
-          resultImage.src = data.output;
+          resultImage.src = output;
           resultImage.style.display = 'block';
           setStatus('Processed with fallback');
         }
       };
       resultImg.onerror = () => {
-        resultImage.src = data.output;
+        resultImage.src = output;
         resultImage.style.display = 'block';
         setStatus('Result loaded (processing skipped)');
       };
-      resultImg.src = data.output;
+      resultImg.src = output;
     } catch (err) {
       setStatus('Error: ' + (err.message || 'Qwen request failed'));
     }
