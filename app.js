@@ -215,9 +215,9 @@ function cropWallRegion() {
 
 async function detectWallObject() {
   const cropped = cropWallRegion();
-  if (!cropped) return 'empty wall';
+  if (!cropped) return { object: 'empty wall', description: 'the marked wall' };
   try {
-    setStatus('Detecting main object on wall...');
+    setStatus('Analyzing wall contents...');
     const res = await fetch('/.netlify/functions/analyze-wall', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -225,29 +225,37 @@ async function detectWallObject() {
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    return data.object || 'empty wall';
+    return {
+      object: data.object || 'empty wall',
+      description: data.description || 'the marked wall'
+    };
   } catch (err) {
     console.warn('VL detection failed:', err);
-    return 'empty wall';
+    return { object: 'empty wall', description: 'the marked wall' };
   }
 }
 
-function buildPrompt(rot, wallObject) {
+function buildPrompt(rot, wallObject, wallDescription) {
+  const desc = wallDescription || 'the marked wall';
   const mainGoal = wallObject && wallObject !== 'empty wall'
-    ? `Rotate the camera so that the wall bounded by the four marked points becomes perfectly frontal. This wall contains a ${wallObject} — it MUST remain on the frontal wall after rotation.`
-    : `Rotate the camera so that the wall bounded by the four marked points becomes perfectly frontal.`;
+    ? `Rotate the camera to face the wall that contains ${desc}. This wall must become perfectly frontal and centered. The ${wallObject} must stay on the frontal wall.`
+    : `Rotate the camera to face the marked wall. It must become perfectly frontal and centered.`;
 
   const rotationScale = rot.category === 'minimal'
     ? 'The wall is already nearly frontal; apply only minimal refinement.'
     : `Apply ${rot.phrase} to the ${rot.direction === 'none' ? 'current view' : rot.direction} to achieve this.`;
 
-  const hardConstraints = `Do NOT choose a different wall. Do NOT swap left and right walls. Do NOT move the ${wallObject && wallObject !== 'empty wall' ? wallObject + ' to another wall' : 'any object'}.`;
+  const hardConstraints = `CRITICAL: Do NOT rotate to a different wall. The wall with ${desc} must be the frontal one. Do NOT swap left and right walls.`;
+
+  const angleLimit = rot.angleEstimate > 25
+    ? `The required rotation is about ${rot.angleEstimate}°. Do NOT rotate more than ${rot.angleEstimate + 15}°.`
+    : '';
 
   const preservation = 'Keep the entire room, all walls, floor, ceiling, lighting, and objects exactly as in the source. Only the camera angle changes. Do not add light reflections or artificial highlights on side walls.';
 
-  const negative = `Avoid: under-rotation, over-rotation, skewed frontal wall, asymmetric side walls, missing ${wallObject || 'objects'}, relocated ${wallObject || 'objects'}, light reflections on side walls, artificial highlights, changed lighting, color shift, warped geometry.`;
+  const negative = `Avoid: choosing a different wall, under-rotation, over-rotation, skewed frontal wall, asymmetric side walls, missing ${wallObject || 'objects'}, relocated ${wallObject || 'objects'}, light reflections on side walls, artificial highlights, changed lighting, color shift, warped geometry.`;
 
-  return `${mainGoal} ${rotationScale} ${hardConstraints} ${preservation} ${negative}`;
+  return `${mainGoal} ${rotationScale} ${hardConstraints} ${angleLimit} ${preservation} ${negative}`.replace(/\s+/g, ' ').trim();
 }
 
 // ---------- Post-processing helpers ----------
@@ -462,9 +470,9 @@ if (qwenRun) {
       return;
     }
     const rot = classifyRotation(points);
-    const wallObject = await detectWallObject();
-    const prompt = buildPrompt(rot, wallObject);
-    setStatus(`Rotation: ${rot.category} (~${rot.angleEstimate}° ${rot.direction}), object: ${wallObject} → creating prediction...`);
+    const analysis = await detectWallObject();
+    const prompt = buildPrompt(rot, analysis.object, analysis.description);
+    setStatus(`Rotation: ${rot.category} (~${rot.angleEstimate}° ${rot.direction}), wall: ${analysis.description} → creating prediction...`);
 
     try {
       const cleanCanvas = document.createElement('canvas');
@@ -499,7 +507,7 @@ if (qwenRun) {
           if (previewEmpty) previewEmpty.style.display = 'none';
           if (previewCanvas) previewCanvas.style.display = 'none';
           if (downloadBtn) downloadBtn.disabled = false;
-          setStatus(`Done — max crop + WB + clarity (anchor: ${wallObject})`);
+          setStatus(`Done — max crop + WB + clarity (wall: ${analysis.description})`);
         } catch (e) {
           console.error(e);
           resultImage.src = output;
