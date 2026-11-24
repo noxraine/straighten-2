@@ -1,4 +1,4 @@
-// app.js — Straighten 2: aspect-ratio fix + post-processing + client polling
+// app.js — Straighten 2: aspect-ratio fix + post-processing + client polling + VL anchor
 const $ = (id) => document.getElementById(id);
 
 console.log('app.js loaded');
@@ -185,7 +185,54 @@ function classifyRotation(points) {
   return { direction, category, phrase, intensity, angleEstimate: Math.round(angleEstimate) };
 }
 
-function buildPrompt(rot) {
+function cropWallRegion() {
+  if (!currentImage || points.length !== 4) return null;
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  const minX = Math.max(0, Math.min(...xs));
+  const maxX = Math.min(currentImage.width, Math.max(...xs));
+  const minY = Math.max(0, Math.min(...ys));
+  const maxY = Math.min(currentImage.height, Math.max(...ys));
+  const boxW = maxX - minX;
+  const boxH = maxY - minY;
+  if (boxW < 20 || boxH < 20) return null;
+
+  const maxDim = 768;
+  const scale = Math.min(1, maxDim / Math.max(boxW, boxH));
+  const outW = Math.round(boxW * scale);
+  const outH = Math.round(boxH * scale);
+
+  const crop = document.createElement('canvas');
+  crop.width = outW;
+  crop.height = outH;
+  crop.getContext('2d').drawImage(
+    currentImage,
+    minX, minY, boxW, boxH,
+    0, 0, outW, outH
+  );
+  return crop.toDataURL('image/jpeg', 0.85);
+}
+
+async function detectWallObject() {
+  const cropped = cropWallRegion();
+  if (!cropped) return 'empty wall';
+  try {
+    setStatus('Detecting main object on wall...');
+    const res = await fetch('/.netlify/functions/analyze-wall', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ croppedImage: cropped })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    return data.object || 'empty wall';
+  } catch (err) {
+    console.warn('VL detection failed:', err);
+    return 'empty wall';
+  }
+}
+
+function buildPrompt(rot, wallObject) {
   const dirText = rot.direction === 'none' ? '' : ` by turning the camera to the ${rot.direction}`;
   const instruction = rot.category === 'minimal'
     ? 'The wall is already nearly frontal. Apply only minimal refinement to perfect the perspective without noticeable changes.'
@@ -198,8 +245,14 @@ function buildPrompt(rot) {
     extra = ' Apply ABSOLUTELY MINIMAL refinement — the wall is already almost correct.';
   }
 
+  const objectAnchor = wallObject && wallObject !== 'empty wall'
+    ? `CRITICAL ANCHOR: The marked wall contains a ${wallObject}. After rotation this ${wallObject} MUST remain visible on the FRONTAL wall, roughly centered, with its size, shape and position relative to the wall preserved. Do NOT move it to a side wall. Do NOT remove or replace it.`
+    : 'The marked wall appears empty or contains only minor fixtures. Preserve its surface exactly.';
+
   return `TASK: Reposition the camera to face the marked wall directly.
 ${instruction}${extra}
+
+${objectAnchor}
 
 GEOMETRY REQUIREMENTS:
 - After rotation the marked wall must be perfectly parallel to the image plane
@@ -428,8 +481,9 @@ if (qwenRun) {
       return;
     }
     const rot = classifyRotation(points);
-    const prompt = buildPrompt(rot);
-    setStatus(`Rotation: ${rot.category} (~${rot.angleEstimate}° ${rot.direction}) → creating prediction...`);
+    const wallObject = await detectWallObject();
+    const prompt = buildPrompt(rot, wallObject);
+    setStatus(`Rotation: ${rot.category} (~${rot.angleEstimate}° ${rot.direction}), object: ${wallObject} → creating prediction...`);
 
     try {
       const cleanCanvas = document.createElement('canvas');
@@ -464,7 +518,7 @@ if (qwenRun) {
           if (previewEmpty) previewEmpty.style.display = 'none';
           if (previewCanvas) previewCanvas.style.display = 'none';
           if (downloadBtn) downloadBtn.disabled = false;
-          setStatus('Done — max crop + WB + clarity');
+          setStatus(`Done — max crop + WB + clarity (anchor: ${wallObject})`);
         } catch (e) {
           console.error(e);
           resultImage.src = output;
