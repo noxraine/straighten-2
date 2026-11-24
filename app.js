@@ -249,10 +249,20 @@ function buildPrompt(rot, wallObject) {
     ? `CRITICAL ANCHOR: The marked wall contains a ${wallObject}. After rotation this ${wallObject} MUST remain visible on the FRONTAL wall, roughly centered, with its size, shape and position relative to the wall preserved. Do NOT move it to a side wall. Do NOT remove or replace it.`
     : 'The marked wall appears empty or contains only minor fixtures. Preserve its surface exactly.';
 
+  const lightingControl = `LIGHTING PRESERVATION:
+- Maintain the EXACT same lighting direction and intensity as in the source image
+- Do NOT add light reflections, glare, or bright spots on side walls that were not present in the original
+- Do NOT create light projections or window reflections on adjacent walls
+- The light source remains in its original position relative to the room; only the camera angle changes
+- Side walls must have uniform lighting consistent with the original photo, no artificial highlights or shadows
+- Preserve the original color temperature and white balance exactly`;
+
   return `TASK: Reposition the camera to face the marked wall directly.
 ${instruction}${extra}
 
 ${objectAnchor}
+
+${lightingControl}
 
 GEOMETRY REQUIREMENTS:
 - After rotation the marked wall must be perfectly parallel to the image plane
