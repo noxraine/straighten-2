@@ -139,33 +139,79 @@ function redraw() {
   });
 }
 
-function getDirection(points, imgWidth) {
-  if (points.length < 4) return { horizontal: 'none' };
-  const centerX = (points[0].x + points[1].x + points[2].x + points[3].x) / 4;
-  const imgCenterX = imgWidth / 2;
-  const horizontal = centerX < imgCenterX - 30 ? 'left' : centerX > imgCenterX + 30 ? 'right' : 'none';
-  return { horizontal };
-}
+function classifyRotation(points) {
+  if (points.length < 4) return { direction: 'none', category: 'minimal', phrase: 'already nearly frontal', intensity: 'minimal refinement only' };
 
-function buildPrompt(dir) {
-  let rotate = '';
-  if (dir.horizontal === 'left') rotate = 'to the left';
-  else if (dir.horizontal === 'right') rotate = 'to the right';
+  const [tl, tr, br, bl] = points;
+  const leftHeight = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+  const rightHeight = Math.hypot(br.x - tr.x, br.y - tr.y);
 
-  let action;
-  if (rotate) {
-    action = `Rotate the camera ${rotate}`;
-  } else {
-    action = 'Make the marked wall';
+  let direction = 'none';
+  let magnitude = 0;
+
+  if (leftHeight > rightHeight * 1.04) {
+    direction = 'right';
+    magnitude = (leftHeight - rightHeight) / leftHeight;
+  } else if (rightHeight > leftHeight * 1.04) {
+    direction = 'left';
+    magnitude = (rightHeight - leftHeight) / rightHeight;
   }
 
-  return `${action} until the marked wall is perfectly frontal, centered and perpendicular.
+  const angleEstimate = magnitude * 70;
 
-CRITICAL: This must remain the EXACT same room from a different angle.
-- Do NOT remove, add, or relocate any objects, furniture, doors, windows or radiators.
-- Do NOT swap left and right walls.
-- Keep all textures, materials, colors and lighting direction exactly as they are.
-- Vertical lines stay vertical.
+  let category, phrase, intensity;
+  if (angleEstimate < 5) {
+    category = 'minimal';
+    phrase = 'already nearly frontal';
+    intensity = 'minimal refinement only';
+  } else if (angleEstimate < 15) {
+    category = 'slight';
+    phrase = 'a slight rotation';
+    intensity = 'a small turn';
+  } else if (angleEstimate < 30) {
+    category = 'moderate';
+    phrase = 'a moderate rotation';
+    intensity = 'a clear turn';
+  } else if (angleEstimate < 45) {
+    category = 'significant';
+    phrase = 'a significant rotation';
+    intensity = 'a substantial turn';
+  } else {
+    category = 'major';
+    phrase = 'a major rotation';
+    intensity = 'a strong turn';
+  }
+
+  return { direction, category, phrase, intensity, angleEstimate: Math.round(angleEstimate) };
+}
+
+function buildPrompt(rot) {
+  const dirText = rot.direction === 'none' ? '' : ` by turning the camera to the ${rot.direction}`;
+  const instruction = rot.category === 'minimal'
+    ? 'The wall is already nearly frontal. Apply only minimal refinement to perfect the perspective without noticeable changes.'
+    : `Apply ${rot.phrase}${dirText} so that the marked wall becomes perfectly frontal, centered, and perpendicular to the camera.`;
+
+  let extra = '';
+  if (rot.category === 'major') {
+    extra = ' NOTE: This requires a STRONG camera movement. Apply the full rotation needed to make the wall truly frontal.';
+  } else if (rot.category === 'minimal') {
+    extra = ' Apply ABSOLUTELY MINIMAL refinement — the wall is already almost correct.';
+  }
+
+  return `TASK: Reposition the camera to face the marked wall directly.
+${instruction}${extra}
+
+GEOMETRY REQUIREMENTS:
+- After rotation the marked wall must be perfectly parallel to the image plane
+- Adjacent side walls should recede symmetrically
+- Vertical lines stay vertical
+- The marked wall should be centered
+
+PRESERVATION RULES:
+- This must remain the EXACT same room from a different angle
+- Do NOT remove, add, or relocate any objects, furniture, doors, windows or radiators
+- Do NOT swap left and right walls
+- Keep all textures, materials, colors and lighting direction exactly as they are
 - No new objects.`
     .replace(/\s+/g, ' ').trim();
 }
@@ -381,9 +427,9 @@ if (qwenRun) {
       setStatus('Please place 4 points first');
       return;
     }
-    const dir = getDirection(points, currentImage.width);
-    const prompt = buildPrompt(dir);
-    setStatus(`Direction: ${dir.horizontal} only → creating prediction...`);
+    const rot = classifyRotation(points);
+    const prompt = buildPrompt(rot);
+    setStatus(`Rotation: ${rot.category} (~${rot.angleEstimate}° ${rot.direction}) → creating prediction...`);
 
     try {
       const cleanCanvas = document.createElement('canvas');
