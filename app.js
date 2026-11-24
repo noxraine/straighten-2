@@ -1,5 +1,7 @@
-// Minimal app.js for Straighten 2 — wires original UI + free Qwen direction logic
+// app.js — working Straighten 2 with original UI + free Qwen
 const $ = (id) => document.getElementById(id);
+
+console.log('app.js loaded');
 
 const fileInput = $('file-input');
 const browseBtn = $('browse');
@@ -10,10 +12,20 @@ const previewCanvas = $('preview-canvas');
 const previewEmpty = $('preview-empty');
 const qwenRun = $('qwen-run');
 const qwenStatus = $('qwen-status');
+
+if (!browseBtn || !fileInput) {
+  console.error('Critical elements missing');
+}
+
 const resultImage = document.createElement('img');
 resultImage.style.maxWidth = '100%';
 resultImage.style.display = 'none';
-previewCanvas.parentElement.appendChild(resultImage);
+resultImage.style.position = 'absolute';
+resultImage.style.inset = '0';
+resultImage.style.objectFit = 'contain';
+if (previewCanvas && previewCanvas.parentElement) {
+  previewCanvas.parentElement.appendChild(resultImage);
+}
 
 let currentImage = null;
 let points = [];
@@ -21,51 +33,68 @@ let currentPointIndex = 0;
 
 function setStatus(text) {
   if (qwenStatus) qwenStatus.textContent = text;
+  console.log('Status:', text);
 }
 
-browseBtn.onclick = () => fileInput.click();
-dropzone.onclick = (e) => {
-  if (e.target === dropzone || e.target.closest('.drop-inner')) fileInput.click();
-};
-
-fileInput.onchange = (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      currentImage = img;
-      sourceCanvas.width = img.width;
-      sourceCanvas.height = img.height;
-      const ctx = sourceCanvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      dropzone.hidden = true;
-      workspace.hidden = false;
-      points = [];
-      currentPointIndex = 0;
-      setStatus('Click 4 corners of the frontal wall (TL → TR → BR → BL)');
-    };
-    img.src = reader.result;
+if (browseBtn) {
+  browseBtn.onclick = () => {
+    console.log('Browse clicked');
+    fileInput.click();
   };
-  reader.readAsDataURL(file);
-};
+}
 
-sourceCanvas.onclick = (e) => {
-  if (!currentImage || currentPointIndex >= 4) return;
-  const rect = sourceCanvas.getBoundingClientRect();
-  const scaleX = sourceCanvas.width / rect.width;
-  const scaleY = sourceCanvas.height / rect.height;
-  const x = (e.clientX - rect.left) * scaleX;
-  const y = (e.clientY - rect.top) * scaleY;
-  points.push({ x, y });
-  currentPointIndex++;
-  redraw();
-  if (currentPointIndex === 4) setStatus('4 points set. Click “Выпрямить стену (AI)”');
-};
+if (dropzone) {
+  dropzone.onclick = (e) => {
+    if (e.target === dropzone || e.target.closest('.drop-inner')) {
+      console.log('Dropzone clicked');
+      fileInput.click();
+    }
+  };
+}
+
+if (fileInput) {
+  fileInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    console.log('File selected:', file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        currentImage = img;
+        sourceCanvas.width = img.width;
+        sourceCanvas.height = img.height;
+        const ctx = sourceCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        dropzone.hidden = true;
+        workspace.hidden = false;
+        points = [];
+        currentPointIndex = 0;
+        setStatus('Click 4 corners of the frontal wall (TL → TR → BR → BL)');
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
+}
+
+if (sourceCanvas) {
+  sourceCanvas.onclick = (e) => {
+    if (!currentImage || currentPointIndex >= 4) return;
+    const rect = sourceCanvas.getBoundingClientRect();
+    const scaleX = sourceCanvas.width / rect.width;
+    const scaleY = sourceCanvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    points.push({ x, y });
+    currentPointIndex++;
+    redraw();
+    if (currentPointIndex === 4) setStatus('4 points set. Click “Выпрямить стену (AI)”');
+  };
+}
 
 function redraw() {
-  if (!currentImage) return;
+  if (!currentImage || !sourceCanvas) return;
   const ctx = sourceCanvas.getContext('2d');
   ctx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
   ctx.drawImage(currentImage, 0, 0);
@@ -105,45 +134,45 @@ function buildPrompt(dir) {
   return `${action} until the wall is perfectly frontal, centered and perpendicular. Keep all existing walls, doors and windows exactly as they are. No new objects.`;
 }
 
-qwenRun.onclick = async () => {
-  if (!currentImage || points.length < 4) {
-    setStatus('Please place 4 points first');
-    return;
-  }
-  const dir = getDirection(points, currentImage.width, currentImage.height);
-  const prompt = buildPrompt(dir);
-  setStatus(`Direction: ${dir.horizontal}/${dir.vertical} → sending to Qwen...`);
-
-  try {
-    // Clean image without markers
-    const cleanCanvas = document.createElement('canvas');
-    cleanCanvas.width = currentImage.width;
-    cleanCanvas.height = currentImage.height;
-    cleanCanvas.getContext('2d').drawImage(currentImage, 0, 0);
-    const dataUrl = cleanCanvas.toDataURL('image/jpeg', 0.9);
-
-    const res = await fetch('/.netlify/functions/qwen-frontal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: dataUrl, prompt })
-    });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    if (data.output) {
-      resultImage.src = data.output;
-      resultImage.style.display = 'block';
-      previewEmpty.style.display = 'none';
-      previewCanvas.style.display = 'none';
-      setStatus('Done');
-    } else {
-      throw new Error('No output from Qwen');
+if (qwenRun) {
+  qwenRun.onclick = async () => {
+    if (!currentImage || points.length < 4) {
+      setStatus('Please place 4 points first');
+      return;
     }
-  } catch (err) {
-    setStatus('Error: ' + (err.message || 'Qwen request failed'));
-  }
-};
+    const dir = getDirection(points, currentImage.width, currentImage.height);
+    const prompt = buildPrompt(dir);
+    setStatus(`Direction: ${dir.horizontal}/${dir.vertical} → sending to Qwen...`);
 
-// Basic stubs for other buttons so they don't error
+    try {
+      const cleanCanvas = document.createElement('canvas');
+      cleanCanvas.width = currentImage.width;
+      cleanCanvas.height = currentImage.height;
+      cleanCanvas.getContext('2d').drawImage(currentImage, 0, 0);
+      const dataUrl = cleanCanvas.toDataURL('image/jpeg', 0.9);
+
+      const res = await fetch('/.netlify/functions/qwen-frontal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl, prompt })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (data.output) {
+        resultImage.src = data.output;
+        resultImage.style.display = 'block';
+        if (previewEmpty) previewEmpty.style.display = 'none';
+        if (previewCanvas) previewCanvas.style.display = 'none';
+        setStatus('Done');
+      } else {
+        throw new Error('No output from Qwen');
+      }
+    } catch (err) {
+      setStatus('Error: ' + (err.message || 'Qwen request failed'));
+    }
+  };
+}
+
 const resetBtn = $('reset');
 if (resetBtn) resetBtn.onclick = () => {
   points = [];
