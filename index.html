@@ -1,115 +1,209 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Straighten 2 — Perspective correction</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Straighten 2 — Perspective correction</title>
+  <meta name="description" content="Correct the perspective of a wall, window, or artwork in the browser. Photos are never uploaded.">
+  <meta name="theme-color" content="#f3efe7">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f3efe7'/%3E%3Cpath d='M7 8h10v14H7zM18 11l8 2-1.5 12L16.5 23z' fill='none' stroke='%23243f34' stroke-width='1.6'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,620&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="app">
-        <header class="header">
-            <h1>Straighten 2</h1>
-            <p class="subtitle">Perspective correction with Qwen AI</p>
-        </header>
+  <div class="app">
+    <header class="top">
+      <div>
+        <p class="eyebrow"><span class="swatch" aria-hidden="true"></span> Perspective correction</p>
+        <h1>Straighten 2</h1>
+      </div>
+      <p class="lede">Mark the four corners of a wall. Qwen turns the camera to face it, then you can fine-tune or square the result.</p>
+    </header>
 
-        <div class="main-content">
-            <aside class="sidebar">
-                <div class="upload-section" id="uploadSection">
-                    <div class="upload-area" id="uploadArea">
-                        <div class="upload-icon">📷</div>
-                        <p>Drop a photo</p>
-                        <span class="upload-hint">JPEG, PNG, WebP</span>
-                    </div>
-                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
-                    <div class="upload-actions">
-                        <button class="btn btn-secondary" id="browseBtn">Browse</button>
-                    </div>
-                </div>
-
-                <div class="control-panel hidden" id="controlPanel">
-                    <div class="image-actions">
-                        <button class="btn btn-icon" id="resetBtn" title="Reset">↺</button>
-                        <button class="btn btn-icon" id="replaceBtn" title="Replace">🔄</button>
-                    </div>
-
-                    <div class="main-action">
-                        <button class="btn btn-primary btn-large" id="straightenBtn">
-                            Выпрямить стену (AI)
-                        </button>
-                    </div>
-
-                    <div class="sliders-section">
-                        <div class="slider-group">
-                            <label>Поворот <span id="rotateValue">0°</span></label>
-                            <input type="range" id="rotateSlider" min="-90" max="90" value="0" step="1">
-                        </div>
-                        <div class="slider-group">
-                            <label>Наклон <span id="tiltValue">0.0</span></label>
-                            <input type="range" id="tiltSlider" min="-1" max="1" value="0" step="0.1">
-                        </div>
-                        <div class="slider-group">
-                            <label>Масштаб <span id="scaleValue">1.0</span></label>
-                            <input type="range" id="scaleSlider" min="0.5" max="2" value="1" step="0.1">
-                        </div>
-                    </div>
-
-                    <div class="secondary-actions">
-                        <button class="btn btn-outline" id="rerunBtn">Повторить в Qwen</button>
-                        <button class="btn btn-outline" id="resetCornersBtn">Сбросить точки</button>
-                    </div>
-
-                    <div class="points-info">
-                        <div class="point-label active" data-point="0">1. Top left</div>
-                        <div class="point-label" data-point="1">2. Top right</div>
-                        <div class="point-label" data-point="2">3. Bottom right</div>
-                        <div class="point-label" data-point="3">4. Bottom left</div>
-                    </div>
-                    <p class="status-line" id="statusLine"></p>
-                </div>
-            </aside>
-
-            <main class="canvas-area">
-                <div class="canvas-container" id="canvasContainer">
-                    <canvas id="mainCanvas"></canvas>
-                    <div class="canvas-overlay" id="canvasOverlay"></div>
-                </div>
-                <div class="preview-section" id="previewSection">
-                    <h3>Result</h3>
-                    <img id="resultImage" alt="Corrected" style="max-width:100%; display:none; border-radius:8px;">
-                    <p id="resultPlaceholder">Result will appear here after processing</p>
-                </div>
-            </main>
-
-            <aside class="settings-panel" id="settingsPanel">
-                <div class="setting-group">
-                    <h3>Export</h3>
-                    <div class="export-options">
-                        <label><input type="radio" name="format" value="jpeg" checked> JPEG</label>
-                        <label><input type="radio" name="format" value="png"> PNG</label>
-                    </div>
-                    <div class="export-actions">
-                        <button class="btn btn-primary" id="downloadBtn">Download</button>
-                    </div>
-                </div>
-            </aside>
+    <div id="dropzone" class="dropzone">
+      <div class="drop-inner">
+        <svg class="drop-icon" viewBox="0 0 64 48" aria-hidden="true">
+          <path d="M6 10h28l6 8h18v22H6z" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M18 14h16l4 6 8-2-6 16H14z" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        </svg>
+        <h2>Drop a photo</h2>
+        <p>JPEG, PNG, WebP, or HEIC when the browser can read it. Phone photos, including large ones, stay on this device.</p>
+        <div class="drop-actions">
+          <button type="button" class="primary" id="browse">Browse</button>
+          <button type="button" class="ghost" id="sample-button">Use the sample wall</button>
+          <button type="button" class="ghost" id="room-button">Use the sample room</button>
         </div>
-
-        <footer class="footer">
-            <p>Qwen processes the photo on the server. Local copy is discarded when you close the tab.</p>
-        </footer>
+      </div>
     </div>
 
-    <div class="loading-overlay hidden" id="loadingOverlay">
-        <div class="loading-content">
-            <div class="spinner"></div>
-            <p>Processing with Qwen...</p>
-            <p class="loading-hint">This usually takes 10–40 seconds</p>
-        </div>
+    <div id="workspace" class="workspace" hidden>
+      <div class="boards">
+        <section class="board">
+          <div class="board-head">
+            <div>
+              <h2>Source</h2>
+              <p id="file-meta" class="meta"></p>
+            </div>
+            <div class="board-actions">
+              <button type="button" class="ghost" id="undo" disabled>Undo</button>
+              <button type="button" class="ghost" id="reset">Reset</button>
+              <button type="button" class="ghost" id="replace">Replace</button>
+            </div>
+          </div>
+          <div id="qwen-panel">
+            <p id="qwen-banner" class="ai-banner" hidden role="alert"></p>
+            <div class="board-actions">
+              <button type="button" class="primary" id="qwen-run">Выпрямить стену (AI)</button>
+              <button type="button" class="ghost" id="qwen-cancel" hidden>Cancel</button>
+            </div>
+            <p id="qwen-status" class="note" role="status"></p>
+            <div id="tune-panel" hidden>
+              <div class="quality">
+                <label for="tune-rotate">Поворот <span id="tune-rotate-value">0°</span></label>
+                <input id="tune-rotate" type="range" min="-45" max="45" value="0" step="1">
+              </div>
+              <div class="quality">
+                <label for="tune-tilt">Наклон <span id="tune-tilt-value">0</span></label>
+                <input id="tune-tilt" type="range" min="-1" max="1" value="0" step="0.1">
+              </div>
+              <div class="quality">
+                <label for="tune-zoom">Масштаб <span id="tune-zoom-value">1.0</span></label>
+                <input id="tune-zoom" type="range" min="0.5" max="2" value="1" step="0.05">
+              </div>
+              <div class="board-actions">
+                <button type="button" class="ghost" id="qwen-retry">Повторить в Qwen</button>
+              </div>
+            </div>
+            <div id="qwen-actions" class="board-actions" hidden>
+              <button type="button" class="ghost" id="qwen-original">Сбросить</button>
+              <button type="button" class="ghost" id="qwen-fill">Достроить углы (AI)</button>
+            </div>
+          </div>
+          <ol class="corners" id="corners">
+            <li>Top left</li>
+            <li>Top right</li>
+            <li>Bottom right</li>
+            <li>Bottom left</li>
+          </ol>
+          <p id="hint" class="hint">1. Top left</p>
+          <div class="frame" id="source-frame">
+            <canvas id="source-canvas" aria-label="Photo. Click the corners in the order shown."></canvas>
+          </div>
+        </section>
+
+        <section class="board">
+          <div class="board-head">
+            <div>
+              <h2>Corrected</h2>
+              <p class="meta">Live preview</p>
+            </div>
+            <p id="renderer" class="meta renderer"></p>
+          </div>
+          <p id="preview-hint" class="hint quiet">Bottom left is third, then bottom right. Drag a point if a corner sits a pixel off.</p>
+          <div class="frame preview-frame" id="preview-frame">
+            <p id="preview-empty" class="preview-empty">The frontal view appears here after the fourth corner.</p>
+            <canvas id="preview-canvas" hidden></canvas>
+          </div>
+        </section>
+      </div>
+
+      <aside class="panel">
+        <section>
+          <h2>Frame</h2>
+          <div class="choice stack">
+            <label>
+              <input type="radio" name="frame" id="mode-full" value="full" checked>
+              <span>Whole frame</span>
+            </label>
+            <label>
+              <input type="radio" name="frame" id="mode-max" value="max">
+              <span>Max crop</span>
+            </label>
+            <label>
+              <input type="radio" name="frame" id="mode-crop" value="crop">
+              <span>Crop to selection</span>
+            </label>
+          </div>
+          <div id="ai-panel" hidden>
+            <p id="ai-banner" class="ai-banner" hidden role="alert"></p>
+            <p class="note">The straightened image is sent for this run. Uploaded files are deleted when it finishes or you cancel. The service keeps a prediction briefly, then removes it.</p>
+            <div class="board-actions">
+              <button type="button" class="primary" id="ai-run">Fill empty corners</button>
+              <button type="button" class="ghost" id="ai-cancel" hidden>Cancel</button>
+            </div>
+            <p id="ai-status" class="note" role="status"></p>
+          </div>
+          <p id="frame-note" class="note">Scales the whole straightened photo so every edge stays inside the frame. Empty corners stay transparent in PNG and white in JPEG.</p>
+          <div class="quality">
+            <label for="strength">Correction <span id="strength-value">100%</span></label>
+            <input id="strength" type="range" min="0" max="100" value="100">
+          </div>
+          <p class="note">100% looks straight at the wall. Lower it for a gentler shift.</p>
+        </section>
+
+        <section>
+          <h2>Proportion</h2>
+          <p id="aspect-readout" class="ratio">—</p>
+          <p id="proportion-note" class="note">The estimate appears once all four corners are placed.</p>
+          <div class="pair">
+            <label>
+              Width
+              <input id="real-width" type="number" inputmode="decimal" min="0" step="any" placeholder="3.2" autocomplete="off">
+            </label>
+            <label>
+              Height
+              <input id="real-height" type="number" inputmode="decimal" min="0" step="any" placeholder="2.4" autocomplete="off">
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Adjust</h2>
+          <div class="board-actions">
+            <button type="button" class="ghost" id="white-balance">Pick white</button>
+            <button type="button" class="ghost" id="white-balance-reset">Reset</button>
+          </div>
+          <p id="white-balance-note" class="note">Click a point on the result that should be neutral.</p>
+          <div class="quality">
+            <label for="clarity">Clarity <span id="clarity-value">0</span></label>
+            <input id="clarity" type="range" min="0" max="30" value="0" step="1">
+          </div>
+        </section>
+
+        <section>
+          <h2>Export</h2>
+          <div class="choice">
+            <label>
+              <input type="radio" name="format" id="format-jpeg" value="jpeg" checked>
+              <span>JPEG</span>
+            </label>
+            <label>
+              <input type="radio" name="format" id="format-png" value="png">
+              <span>PNG</span>
+            </label>
+          </div>
+          <div id="quality-row" class="quality">
+            <label for="quality">JPEG quality <span id="quality-value">92%</span></label>
+            <input id="quality" type="range" min="60" max="100" value="92">
+          </div>
+          <p class="export-line"><span id="export-meta">—</span></p>
+          <button type="button" class="primary download" id="download" disabled>Download JPEG</button>
+          <button type="button" class="ghost download" id="download-zip" disabled>Download ZIP</button>
+          <p id="status" class="status" role="status"></p>
+        </section>
+
+        <p class="privacy">Qwen and corner fill upload the photo for that run. Closing the tab discards the local copy.</p>
+      </aside>
     </div>
+  </div>
 
-    <div class="error-toast hidden" id="errorToast"></div>
+  <input id="file-input" class="sr" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif">
+  <div id="loupe" class="loupe" hidden><canvas id="loupe-canvas" width="168" height="168"></canvas></div>
+  <div id="veil" class="veil" hidden><p>Drop to open the photo</p></div>
 
-    <script src="script.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
