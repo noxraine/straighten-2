@@ -67,7 +67,7 @@ if (fileInput) {
         currentPointIndex = 0;
         fitSourceCanvas();
         redraw();
-        setStatus('Click 4 corners of the frontal wall (TL → TR → BR → BL)');
+        setStatus('Click 4 corners of the frontal wall (TL → TR → BR → BL). Vertical lines must already be vertical.');
         if (downloadBtn) downloadBtn.disabled = true;
         finalResultDataUrl = null;
       };
@@ -119,7 +119,7 @@ if (sourceCanvas) {
     points.push({ x, y });
     currentPointIndex++;
     redraw();
-    if (currentPointIndex === 4) setStatus('4 points set. Click “Выпрямить стену (AI)”');
+    if (currentPointIndex === 4) setStatus('4 points set. Click “Выпрямить стену (AI)”. Only left/right rotation (verticals must already be vertical).');
   };
 }
 
@@ -139,29 +139,22 @@ function redraw() {
   });
 }
 
-function getDirection(points, imgWidth, imgHeight) {
-  if (points.length < 4) return { horizontal: 'none', vertical: 'none' };
+function getDirection(points, imgWidth) {
+  if (points.length < 4) return { horizontal: 'none' };
   const centerX = (points[0].x + points[1].x + points[2].x + points[3].x) / 4;
-  const centerY = (points[0].y + points[1].y + points[2].y + points[3].y) / 4;
   const imgCenterX = imgWidth / 2;
-  const imgCenterY = imgHeight / 2;
   const horizontal = centerX < imgCenterX - 30 ? 'left' : centerX > imgCenterX + 30 ? 'right' : 'none';
-  const vertical = centerY < imgCenterY - 30 ? 'up' : centerY > imgCenterY + 30 ? 'down' : 'none';
-  return { horizontal, vertical };
+  return { horizontal };
 }
 
 function buildPrompt(dir) {
   let rotate = '';
   if (dir.horizontal === 'left') rotate = 'to the left';
   else if (dir.horizontal === 'right') rotate = 'to the right';
-  let tilt = '';
-  if (dir.vertical === 'up') tilt = ' and look up';
-  else if (dir.vertical === 'down') tilt = ' and look down';
   let action = 'Rotate the camera';
   if (rotate) action += ` ${rotate}`;
-  if (tilt) action += tilt;
-  if (!rotate && !tilt) action = 'Make the wall';
-  return `${action} until the wall is perfectly frontal, centered and perpendicular. Keep all existing walls, doors and windows exactly as they are. No new objects.`;
+  else action = 'Make the wall';
+  return `${action} until the wall is perfectly frontal, centered and perpendicular. Keep all existing walls, doors and windows exactly as they are. No new objects. Vertical lines stay vertical.`;
 }
 
 // ---------- Post-processing helpers ----------
@@ -375,9 +368,9 @@ if (qwenRun) {
       setStatus('Please place 4 points first');
       return;
     }
-    const dir = getDirection(points, currentImage.width, currentImage.height);
+    const dir = getDirection(points, currentImage.width);
     const prompt = buildPrompt(dir);
-    setStatus(`Direction: ${dir.horizontal}/${dir.vertical} → creating prediction...`);
+    setStatus(`Direction: ${dir.horizontal} only → creating prediction...`);
 
     try {
       const cleanCanvas = document.createElement('canvas');
