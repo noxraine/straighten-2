@@ -233,50 +233,21 @@ async function detectWallObject() {
 }
 
 function buildPrompt(rot, wallObject) {
-  const dirText = rot.direction === 'none' ? '' : ` by turning the camera to the ${rot.direction}`;
-  const instruction = rot.category === 'minimal'
-    ? 'The wall is already nearly frontal. Apply only minimal refinement to perfect the perspective without noticeable changes.'
-    : `Apply ${rot.phrase}${dirText} so that the marked wall becomes perfectly frontal, centered, and perpendicular to the camera.`;
+  const mainGoal = wallObject && wallObject !== 'empty wall'
+    ? `Rotate the camera so that the wall bounded by the four marked points becomes perfectly frontal. This wall contains a ${wallObject} — it MUST remain on the frontal wall after rotation.`
+    : `Rotate the camera so that the wall bounded by the four marked points becomes perfectly frontal.`;
 
-  let extra = '';
-  if (rot.category === 'major') {
-    extra = ' NOTE: This requires a STRONG camera movement. Apply the full rotation needed to make the wall truly frontal.';
-  } else if (rot.category === 'minimal') {
-    extra = ' Apply ABSOLUTELY MINIMAL refinement — the wall is already almost correct.';
-  }
+  const rotationScale = rot.category === 'minimal'
+    ? 'The wall is already nearly frontal; apply only minimal refinement.'
+    : `Apply ${rot.phrase} to the ${rot.direction === 'none' ? 'current view' : rot.direction} to achieve this.`;
 
-  const objectAnchor = wallObject && wallObject !== 'empty wall'
-    ? `CRITICAL ANCHOR: The marked wall contains a ${wallObject}. After rotation this ${wallObject} MUST remain visible on the FRONTAL wall, roughly centered, with its size, shape and position relative to the wall preserved. Do NOT move it to a side wall. Do NOT remove or replace it.`
-    : 'The marked wall appears empty or contains only minor fixtures. Preserve its surface exactly.';
+  const hardConstraints = `Do NOT choose a different wall. Do NOT swap left and right walls. Do NOT move the ${wallObject && wallObject !== 'empty wall' ? wallObject + ' to another wall' : 'any object'}.`;
 
-  const lightingControl = `LIGHTING PRESERVATION:
-- Maintain the EXACT same lighting direction and intensity as in the source image
-- Do NOT add light reflections, glare, or bright spots on side walls that were not present in the original
-- Do NOT create light projections or window reflections on adjacent walls
-- The light source remains in its original position relative to the room; only the camera angle changes
-- Side walls must have uniform lighting consistent with the original photo, no artificial highlights or shadows
-- Preserve the original color temperature and white balance exactly`;
+  const preservation = 'Keep the entire room, all walls, floor, ceiling, lighting, and objects exactly as in the source. Only the camera angle changes. Do not add light reflections or artificial highlights on side walls.';
 
-  return `TASK: Reposition the camera to face the marked wall directly.
-${instruction}${extra}
+  const negative = `Avoid: under-rotation, over-rotation, skewed frontal wall, asymmetric side walls, missing ${wallObject || 'objects'}, relocated ${wallObject || 'objects'}, light reflections on side walls, artificial highlights, changed lighting, color shift, warped geometry.`;
 
-${objectAnchor}
-
-${lightingControl}
-
-GEOMETRY REQUIREMENTS:
-- After rotation the marked wall must be perfectly parallel to the image plane
-- Adjacent side walls should recede symmetrically
-- Vertical lines stay vertical
-- The marked wall should be centered
-
-PRESERVATION RULES:
-- This must remain the EXACT same room from a different angle
-- Do NOT remove, add, or relocate any objects, furniture, doors, windows or radiators
-- Do NOT swap left and right walls
-- Keep all textures, materials, colors and lighting direction exactly as they are
-- No new objects.`
-    .replace(/\s+/g, ' ').trim();
+  return `${mainGoal} ${rotationScale} ${hardConstraints} ${preservation} ${negative}`;
 }
 
 // ---------- Post-processing helpers ----------
