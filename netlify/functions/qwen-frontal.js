@@ -19,14 +19,12 @@ exports.handler = async (event) => {
       aspect_ratio: 'match_input_image',
       output_format: 'png'
     };
-    // Do NOT force rotate_degrees / vertical_tilt / move_forward — let Qwen decide freely
 
     const createRes = await fetch('https://api.replicate.com/v1/models/qwen/qwen-edit-multiangle/predictions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'wait=8'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ input })
     });
@@ -37,26 +35,16 @@ exports.handler = async (event) => {
     }
 
     const prediction = await createRes.json();
-    let result = prediction;
-    if (result.status !== 'succeeded' && result.urls?.get) {
-      for (let i = 0; i < 30; i++) {
-        await new Promise(r => setTimeout(r, 2000));
-        const poll = await fetch(result.urls.get, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        result = await poll.json();
-        if (result.status === 'succeeded' || result.status === 'failed') break;
-      }
-    }
-
-    if (result.status !== 'succeeded') {
-      return { statusCode: 500, body: JSON.stringify({ error: result.error || 'Prediction failed' }) };
-    }
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ output: result.output })
+      body: JSON.stringify({
+        id: prediction.id,
+        status: prediction.status,
+        getUrl: prediction.urls?.get || null,
+        output: prediction.output || null
+      })
     };
   } catch (err) {
     return { statusCode: 500, body: err.message };
