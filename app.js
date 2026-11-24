@@ -151,10 +151,23 @@ function buildPrompt(dir) {
   let rotate = '';
   if (dir.horizontal === 'left') rotate = 'to the left';
   else if (dir.horizontal === 'right') rotate = 'to the right';
-  let action = 'Rotate the camera';
-  if (rotate) action += ` ${rotate}`;
-  else action = 'Make the wall';
-  return `${action} until the wall is perfectly frontal, centered and perpendicular. Keep all existing walls, doors and windows exactly as they are. No new objects. Vertical lines stay vertical.`;
+
+  let action;
+  if (rotate) {
+    action = `Rotate the camera ${rotate}`;
+  } else {
+    action = 'Make the marked wall';
+  }
+
+  return `${action} until the marked wall is perfectly frontal, centered and perpendicular.
+
+CRITICAL: This must remain the EXACT same room from a different angle.
+- Do NOT remove, add, or relocate any objects, furniture, doors, windows or radiators.
+- Do NOT swap left and right walls.
+- Keep all textures, materials, colors and lighting direction exactly as they are.
+- Vertical lines stay vertical.
+- No new objects.`
+    .replace(/\s+/g, ' ').trim();
 }
 
 // ---------- Post-processing helpers ----------
